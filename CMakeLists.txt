@@ -26,7 +26,7 @@ set(glfw_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/glfw/include")
 	
 
 # Add source to this project's executable.
-add_executable(NBody "NBody.cpp" "NBody.h")
+add_executable(NBody "NBody.cpp" "NBody.h" "main.cpp")
 target_link_libraries(NBody 
 	PUBLIC ${OpenCL_LIBRARIES}
 	PUBLIC ${OpenGL_LIBRARIES}

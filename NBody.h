@@ -1,9 +1,36 @@
-﻿// NBody.h : Include file for standard system include files,
-// or project specific include files.
+﻿#pragma once
 
-#pragma once
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
-#include <iostream>
+#define __CL_ENABLE_EXCEPTIONS
 #include <CL/cl.hpp>
 
-// TODO: Reference additional headers your program requires here.
+#include "DoubleBuffer.h"
+#include "NBodyKernel.h"
+
+class NBody
+{
+public:
+	NBody(const long particaleCount, const float stepSize);
+
+	void run();
+
+private:
+	void init();
+
+	void preiodic();
+
+	void destroy();
+
+	cl::CommandQueue			m_commandQueue;
+	cl::Context					m_context;
+	cl::Device					m_device;
+	const long					m_particaleCount;
+	DoubleBuffer<cl::BufferGL>	m_particlesProcessingBuffer;
+	DoubleBuffer<GLuint>		m_particlesDrawBuffer;
+	const float					m_stepSize;
+	GLuint						m_vao;
+	GLFWwindow*					m_window;
+};
+

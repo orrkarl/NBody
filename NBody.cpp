@@ -3,10 +3,7 @@
 
 #include "NBody.h"
 
-using namespace std;
-
-int main()
+NBody::NBody(const long particaleCount, const float stepSize)
+	: m_particaleCount(particaleCount), m_stepSize(stepSize)
 {
-	cout << "Hello CMake." << endl;
-	return 0;
 }
