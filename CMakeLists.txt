@@ -28,7 +28,7 @@ set(glfw_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/glfw/include")
 	
 
 # Add source to this project's executable.
-add_executable(NBody "common.cpp" "common.h" "DoubleBuffer.h" "main.cpp" "NBody.cpp" "NBody.h" "NBodyKernel.h" "Particle.h")
+add_executable(NBody "cl.h" "interop.cpp" "interop.h" "common.cpp" "common.h" "DoubleBuffer.h" "main.cpp" "NBody.cpp" "NBody.h" "NBodyKernel.h" "Particle.h")
 
 target_link_libraries(NBody 
 	PUBLIC ${OpenCL_LIBRARIES}
