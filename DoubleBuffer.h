@@ -9,16 +9,25 @@ public:
 	{
 	}
 
+	DoubleBuffer()
+		: m_buffers{ T(), T() }, m_swapped(false)
+	{
+	}
+
 	T& front() { return m_buffers[1 - int(m_swapped)]; }
 	const T& front() const { return m_buffers[1 - int(m_swapped)]; }
 
 	T& back() { return m_buffers[int(m_swapped)]; }
 	const T& back() const { return m_buffers[int(m_swapped)]; }
 
+	T* base() { return m_buffers; }
+	const T* base() const { return m_buffers; }
+
 	void swap()
 	{
 		m_swapped = !m_swapped;
 	}
+
 
 private:
 	T	 m_buffers[2];

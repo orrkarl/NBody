@@ -2,21 +2,46 @@
 
 #include <string>
 
-#define __CL_ENABLE_EXCEPTIONS
-#include <CL/cl.hpp>
+#include "common.h"
 
 class NBodyKernel : cl::Kernel
 {
 public:
-	static const std::string NAME;
+	static inline const char* const NAME = "process_particles";
 
-	NBodyKernel(const cl::Program& program);
+	NBodyKernel(const cl::Program& program)
+		: cl::Kernel(program, NAME)
+	{
+	}
 
-	void setParticleBuffer();
+	NBodyKernel()
+		: cl::Kernel()
+	{
+	}
 
-	void setParticleCount();
+	void setParticleBuffer(const cl::Buffer& src)
+	{
+		setArg(PARTICLE_SOURCE_BUFFER_INDEX, src);
+	}
 
-	void setStepSize();
+	void setParticleCount(const ulong_t count)
+	{
+		setArg(PARTICLE_COUNT_INDEX, count);
+	}
 
-	void setDestinationBuffer();
+	void setStepSize(const float step)
+	{
+		setArg(SIMULATION_STEP_SIZE_INDEX, step);
+	}
+
+	void setDestinationBuffer(const cl::Buffer& res)
+	{
+		setArg(PARTICLE_DESTINATION_BUFFER_INDEX, res);
+	}
+
+private:
+	static inline const uint_t PARTICLE_SOURCE_BUFFER_INDEX		 = 0;
+	static inline const uint_t PARTICLE_COUNT_INDEX				 = 1;
+	static inline const uint_t SIMULATION_STEP_SIZE_INDEX		 = 2;
+	static inline const uint_t PARTICLE_DESTINATION_BUFFER_INDEX = 3;
 };
