@@ -36,6 +36,7 @@ add_executable(
 	"src/main.cpp" 
 	"src/NBody.cpp" "src/NBody.h" 
 	"src/NBodyKernel.h" 
+	"src/NBodyProgram.cpp" "src/NBodyProgram.h"
 	"src/Particle.h"
 )
 

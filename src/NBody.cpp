@@ -3,6 +3,8 @@
 
 #include "NBody.h"
 
+#include "NBodyProgram.h"
+
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -75,7 +77,8 @@ void NBody::initCL(const ulong_t particleCount, const float stepSize)
 	m_particlesProcessingBuffer.back()  = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
 	m_particlesProcessingBuffer.front() = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
 
-	m_particleProcessor = NBodyKernel();
+	auto prog = NBodyProgram(m_context);
+	m_particleProcessor = NBodyKernel(prog);
 	m_particleProcessor.setParticleCount(particleCount);
 	m_particleProcessor.setStepSize(stepSize);
 }
