@@ -10,6 +10,31 @@
 #include <string>
 #include <vector>
 
+const char* VERTEX_SHADER = "";
+const int VERTEX_SHADER_LENGTH = strlen(VERTEX_SHADER);
+
+const char* FRAGMENT_SHADER = "";
+const int FRAGMENT_SHADER_LENGTH = strlen(FRAGMENT_SHADER);
+
+struct GLShaderRAII
+{
+public:
+	GLShaderRAII(const GLenum shaderType)
+		: shader(glCreateShader(shaderType))
+	{
+	}
+
+	~GLShaderRAII()
+	{
+		glDeleteShader(shader);
+	}
+
+	operator GLuint() { return shader; }
+
+
+	GLuint shader;
+};
+
 void errorCallback(int error, const char* description)
 {
 	std::cerr << "GLFW Error: " << description << '\n';
@@ -118,6 +143,25 @@ void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t 
 	glNamedBufferData(m_particlesDrawBuffer.back(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
 	glNamedBufferData(m_particlesDrawBuffer.front(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
 	validateGL();
+
+	m_glProgram = glCreateProgram();
+	
+	auto vShader = GLShaderRAII(GL_VERTEX_SHADER);
+	glShaderSource(vShader, 1, &VERTEX_SHADER, &VERTEX_SHADER_LENGTH);
+	glCompileShader(vShader);
+	validateGL();
+
+	auto fShader = GLShaderRAII(GL_FRAGMENT_SHADER);
+	glShaderSource(fShader, 1, &FRAGMENT_SHADER, &FRAGMENT_SHADER_LENGTH);
+	glCompileShader(fShader);
+	validateGL();
+
+	glAttachShader(m_glProgram, vShader);
+	glAttachShader(m_glProgram, fShader);
+	glLinkProgram(m_glProgram);
+	validateGL();
+
+	glUseProgram(m_glProgram);
 }
 
 NBody::~NBody() noexcept
@@ -126,6 +170,8 @@ NBody::~NBody() noexcept
 
 	glDeleteBuffers(2, m_particlesDrawBuffer.base());
 	glDeleteVertexArrays(1, &m_vao);
+
+	glDeleteProgram(m_glProgram);
 }
 
 void NBody::run()
