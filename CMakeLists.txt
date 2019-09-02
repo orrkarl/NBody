@@ -28,7 +28,16 @@ set(glfw_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/glfw/include")
 	
 
 # Add source to this project's executable.
-add_executable(NBody "cl.h" "interop.cpp" "interop.h" "common.cpp" "common.h" "DoubleBuffer.h" "main.cpp" "NBody.cpp" "NBody.h" "NBodyKernel.h" "Particle.h")
+add_executable(
+	NBody 
+	"src/cl.cpp" "src/cl.h" 
+	"src/common.cpp" "src/common.h" 
+	"src/DoubleBuffer.h" 
+	"src/main.cpp" 
+	"src/NBody.cpp" "src/NBody.h" 
+	"src/NBodyKernel.h" 
+	"src/Particle.h"
+)
 
 target_link_libraries(NBody 
 	PUBLIC ${OpenCL_LIBRARIES}
@@ -41,22 +50,25 @@ target_include_directories(NBody
 	PUBLIC ${glew_INCLUDE_DIRS}
 	PUBLIC ${glfw_INCLUDE_DIRS})
 
-if(CMAKE_BUILD_TYPE STREQUAL Debug)
-		add_custom_command(
-			TARGET NBody
-			PRE_LINK
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-			"${PROJECT_BINARY_DIR}/bin/glewd.dll"         
-			${CMAKE_CURRENT_BINARY_DIR}
-		)	
-	else()
-		add_custom_command(
-			TARGET NBody
-			PRE_LINK
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different
-			"${PROJECT_BINARY_DIR}/bin/glew.dll"         
-			${CMAKE_CURRENT_BINARY_DIR}
-		)
+
+if(WIN32)
+	if(CMAKE_BUILD_TYPE STREQUAL Debug)
+			add_custom_command(
+				TARGET NBody
+				PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${PROJECT_BINARY_DIR}/bin/glewd.dll"         
+				${CMAKE_CURRENT_BINARY_DIR}
+			)	
+		else()
+			add_custom_command(
+				TARGET NBody
+				PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different
+				"${PROJECT_BINARY_DIR}/bin/glew.dll"         
+				${CMAKE_CURRENT_BINARY_DIR}
+			)
+	endif()
 endif()
 
 

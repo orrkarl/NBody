@@ -25,7 +25,7 @@ void NBody::initialize()
 	{
 		const char* err;
 		glfwGetError(&err);
-		throw std::exception(err);
+		throw std::runtime_error(err);
 	}
 	glfwSetErrorCallback(errorCallback);
 }
@@ -38,9 +38,12 @@ void NBody::destroy() noexcept
 NBody::NBody(const ulong_t particleCount, const float stepSize, const uint_t width, const uint_t height, const char* name)
 	: m_vao(0), m_window(nullptr)
 {
-	const char* glfwErr;
-	GLenum glewErr;
+	initCL(particleCount, stepSize);
+	initGL(particleCount, width, height, name);
+}
 
+void NBody::initCL(const ulong_t particleCount, const float stepSize)
+{
 	auto platform = cl::Platform::get();
 
 	std::vector<cl::Device> devices;
@@ -53,15 +56,34 @@ NBody::NBody(const ulong_t particleCount, const float stepSize, const uint_t wid
 
 	if (!devices.size())
 	{
-		throw std::exception("No OpenCL devices found!");
+		throw std::runtime_error("No OpenCL devices found!");
 	}
 
 	m_device = devices[0];
 
-	cl_context_properties props[3] = { CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(platform()), 0 };
+	cl_context_properties props[3]
+	{
+		CL_CONTEXT_PLATFORM,
+		reinterpret_cast<cl_context_properties>(platform()),
+		0
+	};
+
 	m_context = cl::Context(m_device, props);
 
 	m_commandQueue = cl::CommandQueue(m_context, m_device, (cl_command_queue_properties)CL_QUEUE_PROFILING_ENABLE);
+
+	m_particlesProcessingBuffer.back()  = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
+	m_particlesProcessingBuffer.front() = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
+
+	m_particleProcessor = NBodyKernel();
+	m_particleProcessor.setParticleCount(particleCount);
+	m_particleProcessor.setStepSize(stepSize);
+}
+
+void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t height, const char* name)
+{
+	const char* glfwErr;
+	GLenum glewErr;
 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -93,9 +115,6 @@ NBody::NBody(const ulong_t particleCount, const float stepSize, const uint_t wid
 	glNamedBufferData(m_particlesDrawBuffer.back(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
 	glNamedBufferData(m_particlesDrawBuffer.front(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
 	validateGL();
-
-	m_particlesProcessingBuffer.back() = cl::BufferGL(m_context, CL_MEM_READ_WRITE, m_particlesDrawBuffer.back());
-	m_particlesProcessingBuffer.front() = cl::BufferGL(m_context, CL_MEM_READ_WRITE, m_particlesDrawBuffer.front());
 }
 
 NBody::~NBody() noexcept
