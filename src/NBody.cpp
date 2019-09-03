@@ -10,10 +10,32 @@
 #include <string>
 #include <vector>
 
-const char* VERTEX_SHADER = "";
+const char* VERTEX_SHADER = R"__CODE__(
+#version 450
+
+layout (location = 0) out vec3 	oColor;
+
+layout (location = 1) in vec2 	iPosition;
+layout (location = 2) in vec2 	iVelocity;
+layout (location = 3) in float 	iMass;
+layout (location = 4) in vec3	iColor;
+
+layout (location = 4) uniform float UMAX_MASS;
+layout (location = 5) uniform float UMAX_PT_SIZE;
+
+
+
+void main()
+{
+	gl_Position = vec4(iPosition.x, iPosition.y, 0, 1);
+	gl_PointSize = iMass / UMAX_MASS * UMAX_PT_SIZE;
+	oColor = iColor;
+}
+
+)__CODE__";
 const int VERTEX_SHADER_LENGTH = strlen(VERTEX_SHADER);
 
-const char* FRAGMENT_SHADER = "";
+const char* FRAGMENT_SHADER = R"__CODE__()__CODE__";
 const int FRAGMENT_SHADER_LENGTH = strlen(FRAGMENT_SHADER);
 
 struct GLShaderRAII
