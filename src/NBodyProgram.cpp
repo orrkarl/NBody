@@ -11,7 +11,7 @@ typedef struct _particle
 
 kernel void process_particles(
     global const particle* source,
-    const uint particle_count,
+    const ulong particle_count,
     const float step_size,
     global particle* destination)
 {

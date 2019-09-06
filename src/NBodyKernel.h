@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-class NBodyKernel : cl::Kernel
+class NBodyKernel : public cl::Kernel
 {
 public:
 	static inline const char* const NAME = "process_particles";

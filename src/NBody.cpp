@@ -13,17 +13,14 @@
 const char* VERTEX_SHADER = R"__CODE__(
 #version 450
 
-layout (location = 0) out vec3 	oColor;
-
-layout (location = 1) in vec2 	iPosition;
-layout (location = 2) in vec2 	iVelocity;
-layout (location = 3) in float 	iMass;
-layout (location = 4) in vec3	iColor;
+layout (location = 0) out vec3 oColor;
+layout (location = 1) in vec2  iPosition;
+layout (location = 2) in vec2  iVelocity;
+layout (location = 3) in float iMass;
+layout (location = 4) in vec3  iColor;
 
 layout (location = 4) uniform float UMAX_MASS;
 layout (location = 5) uniform float UMAX_PT_SIZE;
-
-
 
 void main()
 {
@@ -35,7 +32,18 @@ void main()
 )__CODE__";
 const int VERTEX_SHADER_LENGTH = strlen(VERTEX_SHADER);
 
-const char* FRAGMENT_SHADER = R"__CODE__()__CODE__";
+const char* FRAGMENT_SHADER = R"__CODE__(
+#version 450
+
+layout (location = 0) in vec3 iColor;
+out vec4 fragColor;
+
+void main()
+{
+	fragColor = vec4(iColor, 1);
+}
+
+)__CODE__";
 const int FRAGMENT_SHADER_LENGTH = strlen(FRAGMENT_SHADER);
 
 struct GLShaderRAII
@@ -85,8 +93,9 @@ void NBody::destroy() noexcept
 }
 
 NBody::NBody(const ulong_t particleCount, const float stepSize, const uint_t width, const uint_t height, const char* name)
-	: m_vao(0), m_window(nullptr)
+	: m_vao(0), m_window(nullptr), m_particleCount(particleCount), m_particlesHostBuffer(std::make_unique<Particle[]>(particleCount))
 {
+	initParticles(particleCount);
 	initCL(particleCount, stepSize);
 	initGL(particleCount, width, height, name);
 }
@@ -162,8 +171,8 @@ void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t 
 	glCreateBuffers(2, m_particlesDrawBuffer.base());
 	validateGL();
 
-	glNamedBufferData(m_particlesDrawBuffer.back(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
 	glNamedBufferData(m_particlesDrawBuffer.front(), particleCount * sizeof(Particle), nullptr, GL_DYNAMIC_DRAW);
+	glNamedBufferData(m_particlesDrawBuffer.back(), particleCount * sizeof(Particle), m_particlesHostBuffer.get(), GL_DYNAMIC_DRAW);
 	validateGL();
 
 	m_glProgram = glCreateProgram();
@@ -183,7 +192,13 @@ void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t 
 	glLinkProgram(m_glProgram);
 	validateGL();
 
-	glUseProgram(m_glProgram);
+	glDetachShader(m_glProgram, vShader);
+	glDetachShader(m_glProgram, fShader);
+}
+
+void NBody::initParticles(const ulong_t particleCount)
+{
+
 }
 
 NBody::~NBody() noexcept
@@ -200,16 +215,48 @@ void NBody::run()
 {
 	while (!glfwWindowShouldClose(m_window))
 	{
+		clear();
 		periodic();
-
-		glfwSwapBuffers(m_window);
+		swap();
 		glfwPollEvents();
 	}
 }
 
 void NBody::periodic()
 {
-	std::cout << "Hello " << std::endl;
-	throw std::runtime_error("World!");
+	glUseProgram(m_glProgram);
+	glBindVertexArray(m_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, m_particlesDrawBuffer.back());
+	glDrawArrays(GL_POINTS, 0, m_particleCount);
+	validateGL();
+
+	processStep();
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	glUseProgram(0);
 }
 
+void NBody::processStep()
+{
+	m_particleProcessor.setParticleBuffer(m_particlesProcessingBuffer.front());
+	m_particleProcessor.setDestinationBuffer(m_particlesProcessingBuffer.back());
+
+	m_commandQueue.enqueueNDRangeKernel(m_particleProcessor, cl::NullRange, cl::NDRange(m_particleCount), cl::NDRange(256));
+	m_commandQueue.finish();
+
+	glBindBuffer(GL_ARRAY_BUFFER, m_particlesDrawBuffer.back());
+	glBufferData(GL_ARRAY_BUFFER, m_particleCount * sizeof(Particle), m_particlesHostBuffer.get(), GL_DYNAMIC_DRAW);
+}
+
+void NBody::swap()
+{
+	glfwSwapBuffers(m_window);
+	m_particlesDrawBuffer.swap();
+	m_particlesProcessingBuffer.swap();
+}
+
+void NBody::clear()
+{
+	glClear(GL_COLOR_BUFFER_BIT);
+}

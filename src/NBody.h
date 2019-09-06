@@ -6,6 +6,8 @@
 #include "NBodyKernel.h"
 #include "Particle.h"
 
+#include <memory>
+
 class NBody
 {
 public:
@@ -19,17 +21,23 @@ public:
 	void run();
 
 private:
-	void initGL(const uint_t particleCount, const uint_t width, const uint_t height, const char* name);
+	void clear();
 	void initCL(const ulong_t particleCount, const float stepSize);
+	void initGL(const uint_t particleCount, const uint_t width, const uint_t height, const char* name);
+	void initParticles(const ulong_t particleCount);
 	void periodic();
+	void processStep();
+	void swap();
 
 	cl::CommandQueue			m_commandQueue;
 	cl::Context					m_context;
 	cl::Device					m_device;
+	GLuint						m_glProgram;
+	const ulong_t 				m_particleCount;
 	DoubleBuffer<cl::Buffer>	m_particlesProcessingBuffer;
 	NBodyKernel					m_particleProcessor;
 	DoubleBuffer<GLuint>		m_particlesDrawBuffer;
-	GLuint						m_glProgram;
+	std::unique_ptr<Particle[]> m_particlesHostBuffer;
 	GLuint						m_vao;
 	GLFWwindow*					m_window;
 };
