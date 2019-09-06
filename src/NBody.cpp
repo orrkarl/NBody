@@ -14,23 +14,20 @@ const char* VERTEX_SHADER = R"__CODE__(
 #version 450
 
 layout (location = 0) out vec3 oColor;
+
 layout (location = 1) in vec2  iPosition;
 layout (location = 2) in vec2  iVelocity;
 layout (location = 3) in float iMass;
 layout (location = 4) in vec3  iColor;
 
-layout (location = 4) uniform float UMAX_MASS;
-layout (location = 5) uniform float UMAX_PT_SIZE;
-
 void main()
 {
-	gl_Position = vec4(iPosition.x, iPosition.y, 0, 1);
-	gl_PointSize = iMass / UMAX_MASS * UMAX_PT_SIZE;
+	gl_Position = vec4(iPosition.x, iPosition.y, 0, %f);
+	gl_PointSize = %f / %f * iMass;
 	oColor = iColor;
 }
 
 )__CODE__";
-const int VERTEX_SHADER_LENGTH = strlen(VERTEX_SHADER);
 
 const char* FRAGMENT_SHADER = R"__CODE__(
 #version 450
@@ -44,7 +41,6 @@ void main()
 }
 
 )__CODE__";
-const int FRAGMENT_SHADER_LENGTH = strlen(FRAGMENT_SHADER);
 
 struct GLShaderRAII
 {
@@ -130,7 +126,7 @@ void NBody::initCL(const ulong_t particleCount, const float stepSize)
 
 	m_commandQueue = cl::CommandQueue(m_context, m_device, (cl_command_queue_properties)CL_QUEUE_PROFILING_ENABLE);
 
-	m_particlesProcessingBuffer.back()  = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
+	m_particlesProcessingBuffer.back()  = cl::Buffer(m_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, particleCount * sizeof(Particle), m_particlesHostBuffer.get());
 	m_particlesProcessingBuffer.front() = cl::Buffer(m_context, CL_MEM_READ_WRITE, particleCount * sizeof(Particle));
 
 	auto prog = NBodyProgram(m_context);
@@ -176,14 +172,23 @@ void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t 
 	validateGL();
 
 	m_glProgram = glCreateProgram();
+
+	auto vertexFormatted = std::make_unique<GLchar[]>(strlen(VERTEX_SHADER) + 32);
+	std::sprintf(vertexFormatted.get(), VERTEX_SHADER, MAX_DISTANCE, MAX_POINT_SIZE, MAX_MASS);
 	
+    auto vertex = vertexFormatted.get();
+	auto vertexLen = static_cast<int>(strlen(vertex));
+
 	auto vShader = GLShaderRAII(GL_VERTEX_SHADER);
-	glShaderSource(vShader, 1, &VERTEX_SHADER, &VERTEX_SHADER_LENGTH);
+	glShaderSource(vShader, 1, &vertex, &vertexLen);
 	glCompileShader(vShader);
 	validateGL();
 
+	auto fragment = &FRAGMENT_SHADER;
+	auto fragmentLen = static_cast<int>(strlen(FRAGMENT_SHADER));
+
 	auto fShader = GLShaderRAII(GL_FRAGMENT_SHADER);
-	glShaderSource(fShader, 1, &FRAGMENT_SHADER, &FRAGMENT_SHADER_LENGTH);
+	glShaderSource(fShader, 1, fragment, &fragmentLen);
 	glCompileShader(fShader);
 	validateGL();
 
@@ -198,7 +203,6 @@ void NBody::initGL(const uint_t particleCount, const uint_t width, const uint_t 
 
 void NBody::initParticles(const ulong_t particleCount)
 {
-
 }
 
 NBody::~NBody() noexcept
@@ -239,13 +243,13 @@ void NBody::periodic()
 
 void NBody::processStep()
 {
-	m_particleProcessor.setParticleBuffer(m_particlesProcessingBuffer.front());
-	m_particleProcessor.setDestinationBuffer(m_particlesProcessingBuffer.back());
+	m_particleProcessor.setParticleBuffer(m_particlesProcessingBuffer.back());
+	m_particleProcessor.setDestinationBuffer(m_particlesProcessingBuffer.front());
 
 	m_commandQueue.enqueueNDRangeKernel(m_particleProcessor, cl::NullRange, cl::NDRange(m_particleCount), cl::NDRange(256));
 	m_commandQueue.finish();
 
-	glBindBuffer(GL_ARRAY_BUFFER, m_particlesDrawBuffer.back());
+	glBindBuffer(GL_ARRAY_BUFFER, m_particlesDrawBuffer.front());
 	glBufferData(GL_ARRAY_BUFFER, m_particleCount * sizeof(Particle), m_particlesHostBuffer.get(), GL_DYNAMIC_DRAW);
 }
 

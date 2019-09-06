@@ -21,6 +21,10 @@ public:
 	void run();
 
 private:
+	static constexpr float MAX_POINT_SIZE = 10;
+	static constexpr float MAX_MASS = 100;
+	static constexpr float MAX_DISTANCE = 100000;
+
 	void clear();
 	void initCL(const ulong_t particleCount, const float stepSize);
 	void initGL(const uint_t particleCount, const uint_t width, const uint_t height, const char* name);
