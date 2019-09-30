@@ -961,9 +961,7 @@ private:
 			glfwWaitEvents();
 		}
 
-		vkDeviceWaitIdle(m_device);
-
-		cleanupSwapchain();
+		m_device->waitIdle();
 
 		createSwapChain();
 		createImageViews();
@@ -975,38 +973,28 @@ private:
 
 	void createVertexBuffer()
 	{
-		VkBufferCreateInfo bufferInfo = { };
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(vertecies[0]) * vertecies.size();
-		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		vk::BufferCreateInfo bufferInfo(
+			vk::BufferCreateFlags(), 
+			sizeof(vertecies[0]) * vertecies.size(), 
+			vk::BufferUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer)
+		);
 
-		auto status = vkCreateBuffer(m_device, &bufferInfo, nullptr, &m_vertexBuffer);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not create vertex buffer", status);
-		}
-
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memRequirements);
+		m_vertexBuffer = m_device->createBufferUnique(bufferInfo);
 		
-		VkMemoryAllocateInfo allocInfo = { };
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		auto memRequirements = m_device->getBufferMemoryRequirements(m_vertexBuffer.get());
+		
+		vk::MemoryAllocateInfo allocInfo(
+			memRequirements.size, 
+			findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+		);
 
-		status = vkAllocateMemory(m_device, &allocInfo, nullptr, &m_vertexDeviceMemory);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not allocate vertex buffer memory", status);
-		}	
+		m_vertexDeviceMemory = m_device->allocateMemoryUnique(allocInfo);	
 
-		void* data;
-		vkMapMemory(m_device, m_vertexDeviceMemory, 0, bufferInfo.size, 0, &data);
+		void* data = m_device->mapMemory(m_vertexDeviceMemory.get(), 0, bufferInfo.size);		
 		std::memcpy(data, vertecies.data(), static_cast<size_t>(bufferInfo.size));
-		vkUnmapMemory(m_device, m_vertexDeviceMemory);
+		m_device->unmapMemory(m_vertexDeviceMemory.get());
 
-		vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexDeviceMemory, 0);
+		m_device->bindBufferMemory(m_vertexBuffer.get(), m_vertexDeviceMemory.get(), 0);
 	}
 
 	void initVulkan()
