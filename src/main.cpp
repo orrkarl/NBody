@@ -923,32 +923,14 @@ private:
 		m_renderCompleted.resize(size);
 		m_inFlightImages.resize(size);
 
-		VkSemaphoreCreateInfo semaphoreInfo = {};
-		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		VkFenceCreateInfo fenceInfo = {};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		auto semaphoreInfo = vk::SemaphoreCreateInfo();
+		vk::FenceCreateInfo fenceInfo(vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled));
 
 		for (auto i = 0u; i < size; ++i)
 		{
-			auto status = vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailable[i]);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not create image-available semaphore", status);
-			}
-
-			status = vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderCompleted[i]);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not create render-completed semaphore", status);
-			}
-
-			status = vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightImages[i]);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not create image fences", status);
-			}
+			m_imageAvailable[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_renderCompleted[i] = m_device->createSemaphoreUnique(semaphoreInfo);
+			m_inFlightImages[i] = m_device->createFenceUnique(fenceInfo);
 		}
 	}
 
