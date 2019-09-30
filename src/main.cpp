@@ -11,11 +11,12 @@
 #include <string>
 #include <vector>
 
-#define GLFW_INCLUDE_VULKAN
+#include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
 
+#include "util/debug.h"
 
 void onKeyPress(GLFWwindow* window, const int key, const int scancode, const int action, const int mods)
 {
@@ -141,12 +142,6 @@ constexpr uint32_t HEIGHT = 480;
 constexpr const char *NAME = "triangle";
 constexpr unsigned int MAX_FRAMES_IN_FLIGHT = 2;
 
-#ifdef NDEBUG
-static constexpr bool ENABLE_VALIDATION_LAYERS = false;
-#else
-static constexpr bool ENABLE_VALIDATION_LAYERS = true;
-#endif
-
 const std::vector<const char *> VALIDATION_LAYERS =
 {
 	"VK_LAYER_LUNARG_standard_validation"
@@ -179,64 +174,6 @@ std::vector<char> readFile(const std::string &path)
 	file.close();
 
 	return buffer;
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-	VkDebugUtilsMessageTypeFlagsEXT flags,
-	const VkDebugUtilsMessengerCallbackDataEXT *data,
-	void *userData)
-{
-	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-	{
-		std::cerr << "ERROR: " << data->pMessage << std::endl;
-	}
-}
-
-void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &info)
-{
-	info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-						   VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-						   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-					   VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-					   VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	info.pfnUserCallback = debugCallback;
-	info.pUserData = nullptr;
-}
-
-VkResult CreateDebugUtilsMessengerEXT(
-	VkInstance instance,
-	const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-	const VkAllocationCallbacks *pAllocator,
-	VkDebugUtilsMessengerEXT &messenger)
-{
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-	if (func != nullptr)
-	{
-		return func(instance, pCreateInfo, pAllocator, &messenger);
-	}
-	else
-	{
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
-	}
-}
-
-void DestroyDebugUtilsMessengerEXT(
-	VkInstance instance,
-	const VkAllocationCallbacks *pAllocator,
-	VkDebugUtilsMessengerEXT &messenger)
-{
-	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-	if (func != nullptr)
-	{
-		func(instance, messenger, pAllocator);
-	}
-	else
-	{
-		std::cerr << "Could not destroy debug messenger" << std::endl;
-	}
 }
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR renderSurface)
@@ -591,21 +528,17 @@ private:
 		createInfo.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENSIONS.size());
 
-		if (ENABLE_VALIDATION_LAYERS)
-		{
-			createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
-			createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
-		}
-		else
-		{
-			createInfo.enabledLayerCount = 0;
-		}
+		createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+		createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+		
 
 		auto status = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
 		if (status != VK_SUCCESS)
 		{
 			throw VkError("failed to create a logical device", status);
 		}
+
+		m_dispatchDynamic = vk::DispatchLoaderDynamic(m_instance.get(), vkGetInstanceProcAddr, m_device.get(), vkGetDeviceProcAddr);
 
 		vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
 		vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
@@ -1019,27 +952,6 @@ private:
 		}
 	}
 
-	void cleanupSwapchain()
-	{
-		for (auto framebuffer : m_frameBuffers)
-		{
-			vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-		}
-
-		vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_swapChainImages.size()), m_commandBuffers.data());
-
-		vkDestroyPipeline(m_device, m_pipeline, nullptr);
-		vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-		vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-
-		for (auto view : m_swapChainImageViews)
-		{
-			vkDestroyImageView(m_device, view, nullptr);
-		}
-
-		vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-	}
-
 	void recreateSwapchain()
 	{
 		int w = 0, h = 0;
@@ -1100,11 +1012,10 @@ private:
 	void initVulkan()
 	{
 		createInstance();
-		if (ENABLE_VALIDATION_LAYERS)
-		{
-			checkValidationLayerSupport();
-			setupDebugMessenger();
-		}
+		
+		checkValidationLayerSupport();
+		setupDebugMessenger();
+		
 		createRenderSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
@@ -1121,58 +1032,36 @@ private:
 
 	void drawFrame()
 	{
-		vkWaitForFences(m_device, 1, &m_inFlightImages[m_currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
-
-		VkSemaphore *waitSemaphore = &m_imageAvailable[m_currentFrame];
-		VkSemaphore *signalSemaphore = &m_renderCompleted[m_currentFrame];
+		m_device->waitForFences(1, &m_inFlightImages[m_currentFrame].get(), VK_TRUE, std::numeric_limits<uint64_t>::max());
+		const vk::Semaphore* waitSemaphore = &m_imageAvailable[m_currentFrame].get();
+		const vk::Semaphore* signalSemaphore = &m_renderCompleted[m_currentFrame].get();
 
 		uint32_t imageIndex;
-		auto status = vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
-		if (status == VK_ERROR_OUT_OF_DATE_KHR)
+		auto status = m_device->acquireNextImageKHR(m_swapChain.get(), std::numeric_limits<uint64_t>::max(), m_imageAvailable[m_currentFrame].get(), vk::Fence(), &imageIndex);
+		if (status == vk::Result::eErrorOutOfDateKHR)
 		{
 			recreateSwapchain();
 			return;
 		}
-		else if (status != VK_SUCCESS && status != VK_SUBOPTIMAL_KHR)
+		
+		else if (status != vk::Result::eSuccess && status != vk::Result::eSuboptimalKHR)
 		{
-			throw VkError("could not acquire next image", status);
+			vk::throwResultException(status, "could not aquire next image");
 		}
 
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphore;
-		VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		submitInfo.pWaitDstStageMask = &waitStage;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signalSemaphore;
+		const vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+		const vk::SubmitInfo submitInfo(1, waitSemaphore, &waitStage, 1, &m_commandBuffers[imageIndex].get(), 1, signalSemaphore);
 
-		vkResetFences(m_device, 1, &m_inFlightImages[m_currentFrame]);
-		status = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightImages[m_currentFrame]);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not submit queue", status);
-		}
+		m_device->resetFences(1, &m_inFlightImages[m_currentFrame].get());
 
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphore;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &m_swapChain;
-		presentInfo.pImageIndices = &imageIndex;
-		presentInfo.pResults = nullptr;
+		m_graphicsQueue.submit(vk::ArrayProxy(submitInfo), m_inFlightImages[m_currentFrame].get(), m_dispatchStatic);
 
-		status = vkQueuePresentKHR(m_presentQueue, &presentInfo);
-		if (status == VK_ERROR_OUT_OF_DATE_KHR || status == VK_SUBOPTIMAL_KHR)
+		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_swapChain.get(), &imageIndex);
+
+		status = m_presentQueue.presentKHR(presentInfo, m_dispatchStatic);
+		if (status == vk::Result::eErrorOutOfDateKHR || status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
-		}
-		else if (status != VK_SUCCESS)
-		{
-			throw VkError("could present queue", status);
 		}
 
 		m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -1186,77 +1075,45 @@ private:
 			glfwPollEvents();
 		}
 
-		vkQueueWaitIdle(m_graphicsQueue);
-		vkQueueWaitIdle(m_presentQueue);
-	}
-
-	void cleanupSyncObjects()
-	{
-		for (auto fence : m_inFlightImages)
-		{
-			vkDestroyFence(m_device, fence, nullptr);
-		}
-		for (auto semaphore : m_imageAvailable)
-		{
-			vkDestroySemaphore(m_device, semaphore, nullptr);
-		}
-		for (auto semaphore : m_renderCompleted)
-		{
-			vkDestroySemaphore(m_device, semaphore, nullptr);
-		}
+		m_graphicsQueue.waitIdle();
+		m_presentQueue.waitIdle();
 	}
 
 	void cleanup()
 	{
-		cleanupSwapchain();
-
-		vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-		vkFreeMemory(m_device, m_vertexDeviceMemory, nullptr);
-
-		cleanupSyncObjects();
-		
-		vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-
-		vkDestroyDevice(m_device, nullptr);
-
-		if (ENABLE_VALIDATION_LAYERS)
-		{
-			DestroyDebugUtilsMessengerEXT(m_instance, nullptr, m_debugMessenger);
-		}
-
-		vkDestroySurfaceKHR(m_instance, m_renderSurface, nullptr);
-		vkDestroyInstance(m_instance, nullptr);
-
 		glfwDestroyWindow(m_window);
 		glfwTerminate();
 	}
 
-	std::vector<VkCommandBuffer> 	m_commandBuffers;
-	VkCommandPool 					m_commandPool;
-	int 							m_currentFrame;
-	VkDebugUtilsMessengerEXT 		m_debugMessenger;
-	VkDevice 						m_device;
-	std::vector<VkFramebuffer> 		m_frameBuffers;
-	VkQueue 						m_graphicsQueue;
-	std::vector<VkSemaphore> 		m_imageAvailable;
-	std::vector<VkFence> 			m_inFlightImages;
-	VkInstance 						m_instance;
-	VkPipeline 						m_pipeline;
-	VkPhysicalDevice 				m_physicalDevice;
-	VkPipelineLayout 				m_pipelineLayout;
-	VkQueue 	 					m_presentQueue;
-	VkRenderPass 					m_renderPass;
-	std::vector<VkSemaphore>		m_renderCompleted;
-	VkSurfaceKHR 					m_renderSurface;
-	VkSwapchainKHR  				m_swapChain;
-	VkExtent2D 						m_swapChainExtent;
-	VkFormat   						m_swapChainImageFormat;
-	std::vector<VkImage> 			m_swapChainImages;
-	std::vector<VkImageView> 		m_swapChainImageViews;
-	VkBuffer						m_vertexBuffer;
-	VkDeviceMemory					m_vertexDeviceMemory;
-	GLFWwindow*						m_window;
-	bool							m_windowSizeChanged;
+	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
+	vk::UniqueCommandPool 					m_commandPool;
+	int 									m_currentFrame;
+	vk::UniqueDebugUtilsMessengerEXT 		m_debugMessenger;
+	vk::UniqueDevice 						m_device;
+	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
+	vk::Queue 								m_graphicsQueue;
+	std::vector<vk::UniqueSemaphore> 		m_imageAvailable;
+	std::vector<vk::UniqueFence> 			m_inFlightImages;
+	vk::UniqueInstance 						m_instance;
+	vk::UniquePipeline 						m_pipeline;
+	vk::PhysicalDevice 						m_physicalDevice;
+	vk::UniquePipelineLayout 				m_pipelineLayout;
+	vk::Queue 	 							m_presentQueue;
+	vk::UniqueRenderPass 					m_renderPass;
+	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
+	vk::UniqueSurfaceKHR 					m_renderSurface;
+	vk::UniqueSwapchainKHR  				m_swapChain;
+	vk::Extent2D 							m_swapChainExtent;
+	vk::Format   							m_swapChainImageFormat;
+	std::vector<vk::UniqueImage> 			m_swapChainImages;
+	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
+	vk::UniqueBuffer						m_vertexBuffer;
+	vk::UniqueDeviceMemory					m_vertexDeviceMemory;
+	GLFWwindow*								m_window;
+	bool									m_windowSizeChanged;
+
+	vk::DispatchLoaderStatic m_dispatchStatic = vk::DispatchLoaderStatic();
+	vk::DispatchLoaderDynamic m_dispatchDynamic;
 };
 
 int main()

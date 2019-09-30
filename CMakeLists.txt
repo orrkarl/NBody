@@ -14,7 +14,7 @@ find_package(Vulkan REQUIRED)
 
 include(cmake/glslc.cmake)
 
-add_executable(triangle src/main.cpp)
+add_executable(triangle src/main.cpp src/util/debug.cpp)
 target_link_libraries(triangle glfw Vulkan::Vulkan)
 target_include_directories(triangle PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
 
