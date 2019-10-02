@@ -627,21 +627,15 @@ private:
 		}
 	}
 
-	VkShaderModule createShaderModule(const std::vector<char> &code)
+	vk::ShaderModule createShaderModule(const std::vector<char> &code)
 	{
-		VkShaderModuleCreateInfo shaderInfo = {};
-		shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		shaderInfo.codeSize = code.size();
-		shaderInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
+		vk::ShaderModuleCreateInfo shaderInfo(
+			vk::ShaderModuleCreateFlags(),
+			code.size(), 
+			reinterpret_cast<const uint32_t *>(code.data())
+		);
 
-		VkShaderModule ret;
-		auto status = vkCreateShaderModule(m_device, &shaderInfo, nullptr, &ret);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not create shader module", status);
-		}
-
-		return ret;
+		return m_device->createShaderModule(shaderInfo);
 	}
 
 	void createRenderPass()
@@ -693,20 +687,22 @@ private:
 		auto vertShaderCode = readFile("vert.spv");
 		auto fragShaderCode = readFile("frag.spv");
 
-		auto fragShader = createShaderModule(fragShaderCode);
-		auto vertShader = createShaderModule(vertShaderCode);
+		auto fragShader = vk::UniqueShaderModule(createShaderModule(fragShaderCode));
+		auto vertShader = vk::UniqueShaderModule(createShaderModule(vertShaderCode));
 
-		VkPipelineShaderStageCreateInfo vertInfo = {};
-		vertInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertInfo.module = vertShader;
-		vertInfo.pName = "main";
+		vk::PipelineShaderStageCreateInfo vertInfo(
+			vk::PipelineShaderStageCreateFlags(), 
+			vk::ShaderStageFlagBits::eVertex, 
+			vertShader.get(), 
+			"main"
+		);
 
-		VkPipelineShaderStageCreateInfo fragInfo = {};
-		fragInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragInfo.module = fragShader;
-		fragInfo.pName = "main";
+		vk::PipelineShaderStageCreateInfo fragInfo(
+			vk::PipelineShaderStageCreateFlags(), 
+			vk::ShaderStageFlagBits::eFragment, 
+			fragShader.get(), 
+			"main"
+		);
 
 		VkPipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
 
