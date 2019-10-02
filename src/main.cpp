@@ -176,29 +176,24 @@ std::vector<char> readFile(const std::string &path)
 	return buffer;
 }
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR renderSurface)
+QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR renderSurface)
 {
 	QueueFamilyIndices indices;
 
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-	std::vector<VkQueueFamilyProperties> families(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, families.data());
-
+	auto families = device.getQueueFamilyProperties();
 	VkBool32 presentSupport = false;
 
 	uint32_t queueIdx = 0;
-	for (const auto &family : families)
+	for (const auto& family : families)
 	{
 		if (family.queueCount > 0)
 		{
-			if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			if (family.queueFlags & vk::QueueFlagBits::eGraphics)
 			{
 				indices.graphicsFamily = queueIdx;
 			}
 
-			vkGetPhysicalDeviceSurfaceSupportKHR(device, queueIdx, renderSurface, &presentSupport);
+			presentSupport = device.getSurfaceSupportKHR(queueIdx, renderSurface);
 			if (presentSupport)
 			{
 				indices.presentFamily = queueIdx;
@@ -846,72 +841,45 @@ private:
 
 	void createCommandPool()
 	{
-		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface);
-
-		VkCommandPoolCreateInfo commandPoolInfo = {};
-		commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		commandPoolInfo.queueFamilyIndex = indices.graphicsFamily.value();
-
-		auto status = vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_commandPool);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not create command pool", status);
-		}
+		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface.get());
+		vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), indices.graphicsFamily.value());
+		m_commandPool = m_device->createCommandPoolUnique(commandPoolInfo);
 	}
 
 	void createCommandBuffers()
 	{
-		m_commandBuffers.resize(m_swapChainImageViews.size());
+		vk::CommandBufferAllocateInfo allocInfo(
+			m_commandPool.get(), 
+			vk::CommandBufferLevel::ePrimary, 
+			static_cast<uint32_t>(m_swapChainImageViews.size())
+		);
 
-		VkCommandBufferAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = m_commandPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = static_cast<uint32_t>(m_commandBuffers.size());
+		m_commandBuffers = m_device->allocateCommandBuffersUnique(allocInfo);
 
-		auto status = vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data());
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("failed to allocate command buffers!", status);
-		}
+		vk::CommandBufferBeginInfo commandBufferBegin{};
 
+		vk::Buffer vertexBuffers[] = { m_vertexBuffer.get() };
+		vk::DeviceSize vertexOffsets[] = { 0 };
 
-		VkCommandBufferBeginInfo commandBufferBegin = {};
-		commandBufferBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-		VkRenderPassBeginInfo renderPassBegin = {};
-		renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBegin.renderPass = m_renderPass;
+		vk::RenderPassBeginInfo renderPassBegin;
+		renderPassBegin.renderPass = m_renderPass.get();
 		renderPassBegin.renderArea.offset = {0, 0};
 		renderPassBegin.renderArea.extent = m_swapChainExtent;
-		VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+		vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
 		renderPassBegin.clearValueCount = 1;
 		renderPassBegin.pClearValues = &clearColor;
 
-		VkBuffer vertexBuffers[] = { m_vertexBuffer };
-		VkDeviceSize vertexOffsets[] = { 0 };
-
 		for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
 		{
-			renderPassBegin.framebuffer = m_frameBuffers[i];
+			renderPassBegin.framebuffer = m_frameBuffers[i].get();
 
-			status = vkBeginCommandBuffer(m_commandBuffers[i], &commandBufferBegin);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not begin command buffer", status);
-			}
-
-			vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-			vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, vertexOffsets);
-			vkCmdDraw(m_commandBuffers[i], static_cast<uint32_t>(vertecies.size()), 1, 0, 0);
-			vkCmdEndRenderPass(m_commandBuffers[i]);
-
-			status = vkEndCommandBuffer(m_commandBuffers[i]);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not end command buffer recording", status);
-			}
+			m_commandBuffers[i]->begin(commandBufferBegin);
+				m_commandBuffers[i]->beginRenderPass(renderPassBegin, vk::SubpassContents::eInline);
+				m_commandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.get());
+				m_commandBuffers[i]->bindVertexBuffers(0, 1, vertexBuffers, vertexOffsets);
+				m_commandBuffers[i]->draw(static_cast<uint32_t>(vertecies.size()), 1, 0, 0);
+				m_commandBuffers[i]->endRenderPass();
+			m_commandBuffers[i]->end();
 		}
 	}
 
