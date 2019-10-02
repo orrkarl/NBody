@@ -819,23 +819,18 @@ private:
 	{
 		m_frameBuffers.resize(m_swapChainImages.size());
 
-		VkResult status;
-		VkFramebufferCreateInfo framebufferInfo = {};
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = m_renderPass;
-		framebufferInfo.attachmentCount = 1;
-		framebufferInfo.width = m_swapChainExtent.width;
-		framebufferInfo.height = m_swapChainExtent.height;
-		framebufferInfo.layers = 1;
+		vk::FramebufferCreateInfo framebufferInfo(
+			vk::FramebufferCreateFlags(), 
+			m_renderPass.get(), 
+			1, nullptr, 
+			m_swapChainExtent.width, m_swapChainExtent.height, 
+			1
+		);
 
 		for (auto i = 0u; i < m_swapChainImageViews.size(); ++i)
 		{
-			framebufferInfo.pAttachments = &m_swapChainImageViews[i];
-			status = vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_frameBuffers[i]);
-			if (status != VK_SUCCESS)
-			{
-				throw VkError("could not create framebuffer", status);
-			}
+			framebufferInfo.pAttachments = &m_swapChainImageViews[i].get();
+			m_frameBuffers[i] = m_device->createFramebufferUnique(framebufferInfo);
 		}
 	}
 
