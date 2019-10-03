@@ -110,30 +110,17 @@ struct Vertex
 	glm::vec2 pos;
 	glm::vec3 color;
 
-	static VkVertexInputBindingDescription getBindingDescription()
+	static vk::VertexInputBindingDescription getBindingDescription()
 	{
-		VkVertexInputBindingDescription bindingDescription = { };
-		bindingDescription.binding = 0;
-		bindingDescription.stride = sizeof(Vertex);
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		return bindingDescription;
+		return vk::VertexInputBindingDescription(0, sizeof(Vertex));
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription()
+	static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescription()
 	{
-		VkVertexInputAttributeDescription pos = { };
-		pos.binding = 0;
-		pos.format = VK_FORMAT_R32G32_SFLOAT;
-		pos.location = 0;
-		pos.offset = offsetof(Vertex, pos);
-
-		VkVertexInputAttributeDescription color = { };
-		color.binding = 0;
-		color.format = VK_FORMAT_R32G32B32_SFLOAT;
-		color.location = 1;
-		color.offset = offsetof(Vertex, color);
-
-		return { pos, color };
+		return {
+			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+			vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
+		};
 	}
 };
 
@@ -704,33 +691,33 @@ private:
 			"main"
 		);
 
-		VkPipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
+		vk::PipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
 
 		auto bindingDesc = Vertex::getBindingDescription();
 		auto attributeDesc = Vertex::getAttributeDescription();
 
-		VkPipelineVertexInputStateCreateInfo vertexInput = {};
-		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInput.vertexBindingDescriptionCount = 1;
-		vertexInput.pVertexBindingDescriptions = &bindingDesc;
-		vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDesc.size());
-		vertexInput.pVertexAttributeDescriptions = attributeDesc.data();
+		vk::PipelineVertexInputStateCreateInfo vertexInfo(
+			vk::PipelineVertexInputStateCreateFlags(),
+			1, &bindingDesc,
+			attributeDesc.size(), attributeDesc.data()
+		);
 
-		VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		inputAssembly.primitiveRestartEnable = VK_FALSE;
+		vk::PipelineInputAssemblyStateCreateInfo inputAssembly(
+			vk::PipelineInputAssemblyStateCreateFlags(),
+			vk::PrimitiveTopology::eTriangleList,
+			VK_FALSE
+		);
 
-		VkViewport viewport = {};
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = static_cast<float>(m_swapChainExtent.width);
-		viewport.height = static_cast<float>(m_swapChainExtent.height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
+		vk::Viewport viewport(
+			0, 0, 
+			static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height),
+			0.0f, 1.0f
+		);
 
-		VkRect2D scissor = {};
-		scissor.extent = m_swapChainExtent;
+		vk::Rect2D scissor(
+			vk::Offset2D(0, 0), 
+			m_swapChainExtent
+		);
 
 		VkPipelineViewportStateCreateInfo viewportState = {};
 		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
