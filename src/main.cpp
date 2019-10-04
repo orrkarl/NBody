@@ -627,46 +627,38 @@ private:
 
 	void createRenderPass()
 	{
-		VkAttachmentDescription color = {};
-		color.format = m_swapChainImageFormat;
-		color.samples = VK_SAMPLE_COUNT_1_BIT;
-		color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		vk::AttachmentDescription color(
+			vk::AttachmentDescriptionFlags(),
+			m_swapChainImageFormat,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::ePresentSrcKHR
+		);
 
-		VkAttachmentReference colorRef = {};
-		colorRef.attachment = 0;
-		colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		vk::AttachmentReference colorRef(0, vk::ImageLayout::eColorAttachmentOptimal);
 
-		VkSubpassDescription subpassDesc = {};
+		vk::SubpassDescription subpassDesc;
 		subpassDesc.colorAttachmentCount = 1;
 		subpassDesc.pColorAttachments = &colorRef;
 
-		VkSubpassDependency dependency = {};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		vk::SubpassDependency dependency(
+			VK_SUBPASS_EXTERNAL, 0,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			0, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite
+		);
 
-		VkRenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = 1;
-		renderPassInfo.pAttachments = &color;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpassDesc;
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &dependency;
+		vk::RenderPassCreateInfo renderPassInfo(
+			vk::RenderPassCreateFlags(),
+			1, &color,
+			1, &subpassDesc,
+			1, &dependency
+		);
 
-		auto status = vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not create render pass", status);
-		}
+		m_renderPass = m_device->createRenderPassUnique(renderPassInfo);
 	}
 
 	void createGraphicsPipeline()
@@ -696,7 +688,7 @@ private:
 		auto bindingDesc = Vertex::getBindingDescription();
 		auto attributeDesc = Vertex::getAttributeDescription();
 
-		vk::PipelineVertexInputStateCreateInfo vertexInfo(
+		vk::PipelineVertexInputStateCreateInfo vertexInput(
 			vk::PipelineVertexInputStateCreateFlags(),
 			1, &bindingDesc,
 			attributeDesc.size(), attributeDesc.data()
@@ -719,83 +711,57 @@ private:
 			m_swapChainExtent
 		);
 
-		VkPipelineViewportStateCreateInfo viewportState = {};
-		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewportState.viewportCount = 1;
-		viewportState.pViewports = &viewport;
-		viewportState.scissorCount = 1;
-		viewportState.pScissors = &scissor;
+		vk::PipelineViewportStateCreateInfo viewportState(
+			vk::PipelineViewportStateCreateFlags(), 
+			1, &viewport, 
+			1, &scissor
+		);
 
-		VkPipelineRasterizationStateCreateInfo rasterizerState = {};
-		rasterizerState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterizerState.depthClampEnable = VK_FALSE;
-		rasterizerState.rasterizerDiscardEnable = VK_FALSE;
-		rasterizerState.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizerState.lineWidth = 1.0f;
-		rasterizerState.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizerState.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		rasterizerState.depthBiasClamp = VK_FALSE;
+		vk::PipelineRasterizationStateCreateInfo rasterizerState(
+			vk::PipelineRasterizationStateCreateFlags(),
+			VK_FALSE,
+			VK_FALSE,
+			vk::PolygonMode::eFill,
+			vk::CullModeFlagBits::eBack,
+			vk::FrontFace::eClockwise,
+			VK_FALSE
+		);
 
-		VkPipelineMultisampleStateCreateInfo multisamplingState = {};
-		multisamplingState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisamplingState.sampleShadingEnable = VK_FALSE;
-		multisamplingState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		vk::PipelineMultisampleStateCreateInfo multisamplingState;
 
-		VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colorBlendAttachment.blendEnable = VK_FALSE;
+		vk::PipelineColorBlendAttachmentState colorBlendAttachment;
+		colorBlendAttachment.setColorWriteMask(
+			vk::ColorComponentFlagBits::eR | 
+			vk::ColorComponentFlagBits::eG | 
+			vk::ColorComponentFlagBits::eB | 
+			vk::ColorComponentFlagBits::eA  
+		);
 
-		VkPipelineColorBlendStateCreateInfo colorBlending = {};
-		colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colorBlending.logicOpEnable = VK_FALSE;
-		colorBlending.attachmentCount = 1;
-		colorBlending.pAttachments = &colorBlendAttachment;
+		vk::PipelineColorBlendStateCreateInfo colorBlending;
+		colorBlending.setAttachmentCount(1);
+		colorBlending.setPAttachments(&colorBlendAttachment);
 
-		VkDynamicState dynamicStates[] = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_LINE_WIDTH
-		};
+		vk::PipelineLayoutCreateInfo pipelineLayoutInfo;
 
-		VkPipelineDynamicStateCreateInfo dynamicState = {};
-		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		dynamicState.dynamicStateCount = 2;
-		dynamicState.pDynamicStates = dynamicStates;
+		m_pipelineLayout = m_device->createPipelineLayoutUnique(pipelineLayoutInfo);
 
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 0;			  // Optional
-		pipelineLayoutInfo.pSetLayouts = nullptr;		  // Optional
-		pipelineLayoutInfo.pushConstantRangeCount = 0;	// Optional
-		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+		vk::GraphicsPipelineCreateInfo graphicsInfo(
+			vk::PipelineCreateFlags(),
+			2, shaderStages,
+			&vertexInput,
+			&inputAssembly,
+			nullptr,
+			&viewportState,
+			&rasterizerState,
+			&multisamplingState,
+			nullptr,
+			&colorBlending,
+			nullptr,
+			m_pipelineLayout.get(),
+			m_renderPass.get()
+		);
 
-		auto status = vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("failed to create pipeline layout!", status);
-		}
-
-		VkGraphicsPipelineCreateInfo graphicsInfo = {};
-		graphicsInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		graphicsInfo.stageCount = 2;
-		graphicsInfo.pStages = shaderStages;
-		graphicsInfo.pVertexInputState = &vertexInput;
-		graphicsInfo.pInputAssemblyState = &inputAssembly;
-		graphicsInfo.pViewportState = &viewportState;
-		graphicsInfo.pRasterizationState = &rasterizerState;
-		graphicsInfo.pMultisampleState = &multisamplingState;
-		graphicsInfo.pColorBlendState = &colorBlending;
-		graphicsInfo.layout = m_pipelineLayout;
-		graphicsInfo.renderPass = m_renderPass;
-		graphicsInfo.subpass = 0;
-
-		status = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsInfo, nullptr, &m_pipeline);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("failed to create graphics pipeline", status);
-		}
-
-		vkDestroyShaderModule(m_device, vertShader, nullptr);
-		vkDestroyShaderModule(m_device, fragShader, nullptr);
+		m_pipeline = m_device->createGraphicsPipelineUnique(vk::PipelineCache(), graphicsInfo);
 	}
 
 	void createFramebuffers()
