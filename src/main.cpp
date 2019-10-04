@@ -646,7 +646,7 @@ private:
 		subpassDesc.pColorAttachments = &colorRef;
 
 		vk::SubpassDependency dependency(
-			VK_SUBPASS_EXTERNAL, 0,
+			(~0), 0,
 			vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput,
 			0, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite
 		);
