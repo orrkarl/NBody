@@ -197,15 +197,11 @@ QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR r
 	return indices;
 }
 
-bool checkDeviceExtensionsSupported(VkPhysicalDevice dev)
+bool checkDeviceExtensionsSupported(vk::PhysicalDevice dev)
 {
-	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, nullptr);
+	auto properties = dev.enumerateDeviceExtensionProperties();
 
-	std::vector<VkExtensionProperties> properties(extensionCount);
-	vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, properties.data());
-
-	bool isFound = false;
+	bool isFound = false;	
 	for (const auto &extName : DEVICE_EXTENSIONS)
 	{
 		for (const auto &extProperties : properties)
@@ -328,22 +324,17 @@ private:
 		const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&extCount);
 
 		std::vector<const char *> extensions(glfwExtensions, glfwExtensions + extCount);
-		if (ENABLE_VALIDATION_LAYERS)
-		{
-			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		}
-
+		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		return extensions;
 	}
 
-	uint32_t findMemoryType(const uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags)
+	uint32_t findMemoryType(const uint32_t typeFilter, vk::MemoryPropertyFlags propertyFlags)
 	{
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+		auto memProperties = m_physicalDevice.getMemoryProperties();
 
 		for (auto i = 0u; i < memProperties.memoryTypeCount; ++i)
 		{
-			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & propertyFlags == propertyFlags))
+			if ((typeFilter & (1 << i)) && ((memProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags))
 			{
 				return i;
 			}
@@ -354,50 +345,37 @@ private:
 
 	void createInstance()
 	{
-		VkApplicationInfo appInfo = {};
-		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = NAME;
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "No Engine";
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
+		vk::ApplicationInfo appInfo(
+			NAME,
+			VK_MAKE_VERSION(1, 0, 0),
+			"No Engine",
+			VK_MAKE_VERSION(1, 0, 0),
+			VK_API_VERSION_1_0
+		);
 
-		VkInstanceCreateInfo instInfo = {};
-		instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		instInfo.pApplicationInfo = &appInfo;
 		auto exts = getRequiredExtensions();
-		instInfo.enabledExtensionCount = static_cast<uint32_t>(exts.size());
-		instInfo.ppEnabledExtensionNames = exts.data();
+		vk::InstanceCreateInfo instInfo(
+			vk::InstanceCreateFlags(),
+			&appInfo,
+			exts.size(), exts.data(),
+			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data()
+		);
 
-		if (ENABLE_VALIDATION_LAYERS)
-		{
-			instInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
-			instInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
-
-			VkDebugUtilsMessengerCreateInfoEXT debugInfo = {};
-			populateDebugMessengerCreateInfo(debugInfo);
-			instInfo.pNext = &debugInfo;
-		}
-		else
-		{
-			instInfo.enabledLayerCount = 0;
-			instInfo.pNext = nullptr;
-		}
-
-		VkResult status = vkCreateInstance(&instInfo, nullptr, &m_instance);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("failed to create instance!", status);
-		}
+		vk::DebugUtilsMessengerCreateInfoEXT debugInfo(
+			vk::DebugUtilsMessengerCreateFlagsEXT(),
+			vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+			vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+			debugCallback, nullptr
+		);
+		instInfo.pNext = &debugInfo;
+		
+		m_instance = vk::createInstanceUnique(instInfo);
+		m_dispatchDynamic = vk::DispatchLoaderDynamic(m_instance.get(), vkGetInstanceProcAddr);
 	}
 
 	void checkValidationLayerSupport()
 	{
-		uint32_t layerCount;
-		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-		std::vector<VkLayerProperties> layers(layerCount);
-		vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
+		auto layers = vk::enumerateInstanceLayerProperties();
 
 		for (auto layerName : VALIDATION_LAYERS)
 		{
@@ -420,13 +398,14 @@ private:
 
 	void setupDebugMessenger()
 	{
-		VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
-		populateDebugMessengerCreateInfo(createInfo);
-		auto status = CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, m_debugMessenger);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("could not create debug messenger", status);
-		}
+		vk::DebugUtilsMessengerCreateInfoEXT createInfo(
+			vk::DebugUtilsMessengerCreateFlagsEXT(),
+			vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+			vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+			debugCallback, nullptr
+		);
+
+		m_debugMessenger = m_instance->createDebugUtilsMessengerEXTUnique(createInfo, nullptr, m_dispatchDynamic);
 	}
 
 	void createRenderSurface()
@@ -496,8 +475,6 @@ private:
 			&deviceFeatures
 		);
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
-
-		m_dispatchDynamic = vk::DispatchLoaderDynamic(m_instance.get(), vkGetInstanceProcAddr, m_device.get(), vkGetDeviceProcAddr);
 
 		m_graphicsQueue = m_device->getQueue(indices.graphicsFamily.value(), 0);
 		m_presentQueue = m_device->getQueue(indices.presentFamily.value(), 0);
@@ -846,7 +823,10 @@ private:
 		
 		vk::MemoryAllocateInfo allocInfo(
 			memRequirements.size, 
-			findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+			findMemoryType(
+				memRequirements.memoryTypeBits, 
+				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+			)
 		);
 
 		m_vertexDeviceMemory = m_device->allocateMemoryUnique(allocInfo);	
@@ -937,7 +917,9 @@ private:
 	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
 	vk::UniqueCommandPool 					m_commandPool;
 	int 									m_currentFrame;
-	vk::UniqueDebugUtilsMessengerEXT 		m_debugMessenger;
+	vk::UniqueHandle<
+		vk::DebugUtilsMessengerEXT, 
+		vk::DispatchLoaderDynamic> 			m_debugMessenger;
 	vk::UniqueDevice 						m_device;
 	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
 	vk::Queue 								m_graphicsQueue;
