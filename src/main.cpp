@@ -302,7 +302,7 @@ private:
 		glfwSetFramebufferSizeCallback(m_window, &glfwFramebufferResize);
 	}
 
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
+	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities)
 	{
 		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
 		{
@@ -357,8 +357,8 @@ private:
 		vk::InstanceCreateInfo instInfo(
 			vk::InstanceCreateFlags(),
 			&appInfo,
-			exts.size(), exts.data(),
-			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data()
+			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data(),
+			exts.size(), exts.data()
 		);
 
 		vk::DebugUtilsMessengerCreateInfoEXT debugInfo(
@@ -668,7 +668,9 @@ private:
 			vk::PolygonMode::eFill,
 			vk::CullModeFlagBits::eBack,
 			vk::FrontFace::eClockwise,
-			VK_FALSE
+			VK_FALSE,
+			0.0f, 0.0f, 0.0f,
+			1.0f
 		);
 
 		vk::PipelineMultisampleStateCreateInfo multisamplingState;
