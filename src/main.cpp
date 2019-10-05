@@ -226,32 +226,16 @@ bool checkDeviceExtensionsSupported(VkPhysicalDevice dev)
 	return true;
 }
 
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR renderSurface)
+SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR renderSurface)
 {
-	SwapChainSupportDetails details;
-
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, renderSurface, &details.capabilities);
-
-	uint32_t count;
-
-	vkGetPhysicalDeviceSurfaceFormatsKHR(device, renderSurface, &count, nullptr);
-	if (count != 0)
-	{
-		details.formats.resize(count);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, renderSurface, &count, details.formats.data());
-	}
-
-	vkGetPhysicalDeviceSurfacePresentModesKHR(device, renderSurface, &count, nullptr);
-	if (count != 0)
-	{
-		details.presentModes.resize(count);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, renderSurface, &count, details.presentModes.data());
-	}
-
-	return details;
+	return SwapChainSupportDetails{
+		device.getSurfaceCapabilitiesKHR(renderSurface),
+		device.getSurfaceFormatsKHR(renderSurface),
+		device.getSurfacePresentModesKHR(renderSurface)
+	};
 }
 
-bool isDeviceSuitable(VkPhysicalDevice dev, VkSurfaceKHR renderSurface)
+bool isDeviceSuitable(vk::PhysicalDevice dev, vk::SurfaceKHR renderSurface)
 {
 	auto queuesFound = findQueueFamilies(dev, renderSurface).isReady();
 	auto extensionsSupported = checkDeviceExtensionsSupported(dev);
@@ -447,7 +431,14 @@ private:
 
 	void createRenderSurface()
 	{
-		auto status = glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_renderSurface);
+		VkSurfaceKHR surface;
+		auto status = glfwCreateWindowSurface(
+			static_cast<VkInstance>(m_instance.get()), 
+			m_window, 
+			nullptr, 
+			&surface
+		);
+		m_renderSurface = vk::UniqueSurfaceKHR(vk::SurfaceKHR(surface));
 		if (status != VK_SUCCESS)
 		{
 			throw VkError("Could not create render surface", status);
@@ -456,74 +447,60 @@ private:
 
 	void pickPhysicalDevice()
 	{
-		uint32_t deviceCount = 0;
-		vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
+		auto devices = m_instance->enumeratePhysicalDevices();
 
+		auto deviceCount = devices.size();
 		if (deviceCount == 0)
 		{
 			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
 		}
 
-		std::vector<VkPhysicalDevice> devices(deviceCount);
-		vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
-
 		for (const auto &device : devices)
 		{
-			if (isDeviceSuitable(device, m_renderSurface))
+			if (isDeviceSuitable(device, m_renderSurface.get()))
 			{
 				m_physicalDevice = device;
-				break;
+				return;
 			}
 		}
 
-		if (m_physicalDevice == VK_NULL_HANDLE)
-		{
-			throw std::runtime_error("failed to find a suitable GPU!");
-		}
+		throw std::runtime_error("failed to find a suitable GPU!");
 	}
 
 	void createLogicalDevice()
 	{
-		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface);
+		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface.get());
 
-		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 
 		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 		float queuePriority = 1.0f;
-		VkDeviceQueueCreateInfo queueCreateInfo = {};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		vk::DeviceQueueCreateInfo queueCreateInfo(
+			vk::DeviceQueueCreateFlags(),
+			0, 
+			1, &queuePriority
+		);
 		for (const auto &family : uniqueQueueFamilies)
 		{
 			queueCreateInfo.queueFamilyIndex = family;
 			queueCreateInfos.push_back(queueCreateInfo);
 		}
 
-		VkPhysicalDeviceFeatures deviceFeatures = {};
+		vk::PhysicalDeviceFeatures deviceFeatures;
 
-		VkDeviceCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		createInfo.pQueueCreateInfos = queueCreateInfos.data();
-		createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-		createInfo.pEnabledFeatures = &deviceFeatures;
-		createInfo.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
-		createInfo.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENSIONS.size());
-
-		createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
-		createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
-		
-
-		auto status = vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device);
-		if (status != VK_SUCCESS)
-		{
-			throw VkError("failed to create a logical device", status);
-		}
+		vk::DeviceCreateInfo createInfo(
+			vk::DeviceCreateFlags(),
+			queueCreateInfos.size(), queueCreateInfos.data(),
+			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data(),
+			DEVICE_EXTENSIONS.size(), DEVICE_EXTENSIONS.data(),
+			&deviceFeatures
+		);
+		m_device = m_physicalDevice.createDeviceUnique(createInfo);
 
 		m_dispatchDynamic = vk::DispatchLoaderDynamic(m_instance.get(), vkGetInstanceProcAddr, m_device.get(), vkGetDeviceProcAddr);
 
-		vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
-		vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_presentQueue);
+		m_graphicsQueue = m_device->getQueue(indices.graphicsFamily.value(), 0);
+		m_presentQueue = m_device->getQueue(indices.presentFamily.value(), 0);
 	}
 
 	void createSwapChain()
@@ -797,7 +774,7 @@ private:
 
 		vk::RenderPassBeginInfo renderPassBegin;
 		renderPassBegin.renderPass = m_renderPass.get();
-		renderPassBegin.renderArea.offset = {0, 0};
+		renderPassBegin.renderArea.offset = vk::Offset2D(0, 0);
 		renderPassBegin.renderArea.extent = m_swapChainExtent;
 		vk::ClearValue clearColor(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
 		renderPassBegin.clearValueCount = 1;
