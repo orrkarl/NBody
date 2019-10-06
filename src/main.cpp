@@ -16,8 +16,6 @@
 
 #include <glm/glm.hpp>
 
-#include "util/debug.h"
-
 void onKeyPress(GLFWwindow* window, const int key, const int scancode, const int action, const int mods)
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -145,6 +143,18 @@ const std::vector<Vertex> vertecies
     { { 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
     { {-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}	
 };
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+	VkDebugUtilsMessageTypeFlagsEXT flags,
+	const VkDebugUtilsMessengerCallbackDataEXT *data,
+	void *userData)
+{
+	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+	{
+		std::cerr << "ERROR: " << data->pMessage << std::endl;
+	}
+}
 
 std::vector<char> readFile(const std::string &path)
 {
