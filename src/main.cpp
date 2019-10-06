@@ -417,11 +417,15 @@ private:
 			nullptr, 
 			&surface
 		);
-		m_renderSurface = vk::UniqueSurfaceKHR(vk::SurfaceKHR(surface));
 		if (status != VK_SUCCESS)
 		{
 			throw VkError("Could not create render surface", status);
 		}
+
+		m_renderSurface = vk::UniqueSurfaceKHR(
+			vk::SurfaceKHR(surface), 
+			vk::ObjectDestroy(m_instance.get(), nullptr, vk::DispatchLoaderStatic())
+		);
 	}
 
 	void pickPhysicalDevice()
@@ -558,7 +562,7 @@ private:
 		}
 	}
 
-	vk::ShaderModule createShaderModule(const std::vector<char> &code)
+	vk::UniqueShaderModule createShaderModule(const std::vector<char> &code)
 	{
 		vk::ShaderModuleCreateInfo shaderInfo(
 			vk::ShaderModuleCreateFlags(),
@@ -566,7 +570,7 @@ private:
 			reinterpret_cast<const uint32_t *>(code.data())
 		);
 
-		return m_device->createShaderModule(shaderInfo);
+		return m_device->createShaderModuleUnique(shaderInfo);
 	}
 
 	void createRenderPass()
@@ -610,8 +614,8 @@ private:
 		auto vertShaderCode = readFile("vert.spv");
 		auto fragShaderCode = readFile("frag.spv");
 
-		auto fragShader = vk::UniqueShaderModule(createShaderModule(fragShaderCode));
-		auto vertShader = vk::UniqueShaderModule(createShaderModule(vertShaderCode));
+		auto fragShader = createShaderModule(fragShaderCode);
+		auto vertShader = createShaderModule(vertShaderCode);
 
 		vk::PipelineShaderStageCreateInfo vertInfo(
 			vk::PipelineShaderStageCreateFlags(), 
