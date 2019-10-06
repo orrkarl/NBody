@@ -126,7 +126,7 @@ struct Vertex
 
 constexpr uint32_t WIDTH = 640;
 constexpr uint32_t HEIGHT = 480;
-constexpr const char *NAME = "triangle";
+constexpr const char* NAME = "triangle";
 constexpr unsigned int MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char *> VALIDATION_LAYERS =
@@ -889,11 +889,11 @@ private:
 
 		m_device->resetFences(1, &m_inFlightImages[m_currentFrame].get());
 
-		m_graphicsQueue.submit(vk::ArrayProxy(submitInfo), m_inFlightImages[m_currentFrame].get(), m_dispatchStatic);
+		m_graphicsQueue.submit(vk::ArrayProxy(submitInfo), m_inFlightImages[m_currentFrame].get());
 
 		vk::PresentInfoKHR presentInfo(1, signalSemaphore, 1, &m_swapChain.get(), &imageIndex);
 
-		status = m_presentQueue.presentKHR(presentInfo, m_dispatchStatic);
+		status = m_presentQueue.presentKHR(presentInfo);
 		if (status == vk::Result::eErrorOutOfDateKHR || status == vk::Result::eSuboptimalKHR)
 		{
 			recreateSwapchain();
@@ -920,37 +920,38 @@ private:
 		glfwTerminate();
 	}
 
-	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
-	vk::UniqueCommandPool 					m_commandPool;
-	int 									m_currentFrame;
+// Order of fields is important for destructors
+	vk::UniqueInstance 						m_instance;
+	vk::UniqueSurfaceKHR 					m_renderSurface;
 	vk::UniqueHandle<
 		vk::DebugUtilsMessengerEXT, 
 		vk::DispatchLoaderDynamic> 			m_debugMessenger;
 	vk::UniqueDevice 						m_device;
-	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
-	vk::Queue 								m_graphicsQueue;
+	vk::UniqueCommandPool 					m_commandPool;
 	std::vector<vk::UniqueSemaphore> 		m_imageAvailable;
 	std::vector<vk::UniqueFence> 			m_inFlightImages;
-	vk::UniqueInstance 						m_instance;
-	vk::UniquePipeline 						m_pipeline;
-	vk::PhysicalDevice 						m_physicalDevice;
-	vk::UniquePipelineLayout 				m_pipelineLayout;
-	vk::Queue 	 							m_presentQueue;
-	vk::UniqueRenderPass 					m_renderPass;
 	std::vector<vk::UniqueSemaphore>		m_renderCompleted;
-	vk::UniqueSurfaceKHR 					m_renderSurface;
+	vk::UniqueBuffer						m_vertexBuffer;
+	vk::UniqueDeviceMemory					m_vertexDeviceMemory;
 	vk::UniqueSwapchainKHR  				m_swapChain;
+	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
+	vk::UniqueRenderPass 					m_renderPass;
+	vk::UniquePipelineLayout 				m_pipelineLayout;
+	vk::UniquePipeline 						m_pipeline;
+	std::vector<vk::UniqueCommandBuffer>	m_commandBuffers;
+	std::vector<vk::UniqueFramebuffer>		m_frameBuffers;
+
+	int 									m_currentFrame;
+	vk::DispatchLoaderDynamic 				m_dispatchDynamic;
+	vk::Queue 								m_graphicsQueue;
+	vk::PhysicalDevice 						m_physicalDevice;
+	vk::Queue 	 							m_presentQueue;
 	vk::Extent2D 							m_swapChainExtent;
 	vk::Format   							m_swapChainImageFormat;
 	std::vector<vk::Image>		 			m_swapChainImages;
-	std::vector<vk::UniqueImageView> 		m_swapChainImageViews;
-	vk::UniqueBuffer						m_vertexBuffer;
-	vk::UniqueDeviceMemory					m_vertexDeviceMemory;
 	GLFWwindow*								m_window;
 	bool									m_windowSizeChanged;
 
-	vk::DispatchLoaderStatic m_dispatchStatic = vk::DispatchLoaderStatic();
-	vk::DispatchLoaderDynamic m_dispatchDynamic;
 };
 
 int main()
