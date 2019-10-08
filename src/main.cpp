@@ -16,18 +16,8 @@
 
 #include <glm/glm.hpp>
 
-void onKeyPress(GLFWwindow* window, const int key, const int scancode, const int action, const int mods)
-{
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-	{
-		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	}
-}
-
-void onGLFWError(const int error, const char* description)
-{
-	std::cerr << description << '(' << error << ")\n";
-}
+#include "util/callbacks.h"
+#include "util/config.h"
 
 class VkError : public std::runtime_error
 {
@@ -122,39 +112,12 @@ struct Vertex
 	}
 };
 
-constexpr uint32_t WIDTH = 640;
-constexpr uint32_t HEIGHT = 480;
-constexpr const char* NAME = "triangle";
-constexpr unsigned int MAX_FRAMES_IN_FLIGHT = 2;
-
-const std::vector<const char *> VALIDATION_LAYERS =
-{
-	"VK_LAYER_LUNARG_standard_validation"
-};
-
-const std::vector<const char *> DEVICE_EXTENSIONS = 
-{
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
-
 const std::vector<Vertex> vertecies
 {
 	{ { 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
     { { 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
     { {-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}	
 };
-
-VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-	VkDebugUtilsMessageTypeFlagsEXT flags,
-	const VkDebugUtilsMessengerCallbackDataEXT *data,
-	void *userData)
-{
-	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-	{
-		std::cerr << "ERROR: " << data->pMessage << std::endl;
-	}
-}
 
 std::vector<char> readFile(const std::string &path)
 {
@@ -212,7 +175,7 @@ bool checkDeviceExtensionsSupported(vk::PhysicalDevice dev)
 	auto properties = dev.enumerateDeviceExtensionProperties();
 
 	bool isFound = false;	
-	for (const auto &extName : DEVICE_EXTENSIONS)
+	for (const auto &extName : config::DEVICE_EXTENSIONS)
 	{
 		for (const auto &extProperties : properties)
 		{
@@ -319,7 +282,7 @@ private:
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-		m_window = glfwCreateWindow(WIDTH, HEIGHT, NAME, nullptr, nullptr);
+		m_window = glfwCreateWindow(config::WIDTH, config::HEIGHT, config::NAME, nullptr, nullptr);
 		glfwSetWindowUserPointer(m_window, this);
 		glfwSetKeyCallback(m_window, &onKeyPress);
 		glfwSetFramebufferSizeCallback(m_window, &glfwFramebufferResize);
@@ -354,7 +317,7 @@ private:
 	void createInstance()
 	{
 		vk::ApplicationInfo appInfo(
-			NAME,
+			config::NAME,
 			VK_MAKE_VERSION(1, 0, 0),
 			"No Engine",
 			VK_MAKE_VERSION(1, 0, 0),
@@ -365,7 +328,7 @@ private:
 		vk::InstanceCreateInfo instInfo(
 			vk::InstanceCreateFlags(),
 			&appInfo,
-			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data(),
+			config::VALIDATION_LAYERS.size(), config::VALIDATION_LAYERS.data(),
 			exts.size(), exts.data()
 		);
 
@@ -385,7 +348,7 @@ private:
 	{
 		auto layers = vk::enumerateInstanceLayerProperties();
 
-		for (auto layerName : VALIDATION_LAYERS)
+		for (auto layerName : config::VALIDATION_LAYERS)
 		{
 			bool isFound = false;
 			for (const auto &layerProperties : layers)
@@ -482,8 +445,8 @@ private:
 		vk::DeviceCreateInfo createInfo(
 			vk::DeviceCreateFlags(),
 			queueCreateInfos.size(), queueCreateInfos.data(),
-			VALIDATION_LAYERS.size(), VALIDATION_LAYERS.data(),
-			DEVICE_EXTENSIONS.size(), DEVICE_EXTENSIONS.data(),
+			config::VALIDATION_LAYERS.size(), config::VALIDATION_LAYERS.data(),
+			config::DEVICE_EXTENSIONS.size(), config::DEVICE_EXTENSIONS.data(),
 			&deviceFeatures
 		);
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
@@ -931,7 +894,7 @@ private:
 			recreateSwapchain();
 		}
 
-		m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		m_currentFrame = (m_currentFrame + 1) % config::MAX_FRAMES_IN_FLIGHT;
 	}
 
 	void mainLoop()
