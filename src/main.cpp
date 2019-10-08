@@ -70,17 +70,6 @@ private:
 	const char *m_extensionName;
 };
 
-struct QueueFamilyIndices
-{
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
-
-	bool isReady() const
-	{
-		return graphicsFamily.has_value() && presentFamily.has_value();
-	}
-};
-
 struct SwapChainSupportDetails
 {
 	vk::SurfaceCapabilitiesKHR capabilities;
@@ -119,40 +108,6 @@ const std::vector<Vertex> vertecies
     { {-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}	
 };
 
-QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR renderSurface)
-{
-	QueueFamilyIndices indices;
-
-	auto families = device.getQueueFamilyProperties();
-	VkBool32 presentSupport = false;
-
-	uint32_t queueIdx = 0;
-	for (const auto& family : families)
-	{
-		if (family.queueCount > 0)
-		{
-			if (family.queueFlags & vk::QueueFlagBits::eGraphics)
-			{
-				indices.graphicsFamily = queueIdx;
-			}
-
-			presentSupport = device.getSurfaceSupportKHR(queueIdx, renderSurface);
-			if (presentSupport)
-			{
-				indices.presentFamily = queueIdx;
-			}
-		}
-
-		queueIdx++;
-		if (indices.isReady())
-		{
-			break;
-		}
-	}
-
-	return indices;
-}
-
 bool checkDeviceExtensionsSupported(vk::PhysicalDevice dev)
 {
 	auto properties = dev.enumerateDeviceExtensionProperties();
@@ -189,7 +144,7 @@ SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device, vk::Sur
 
 bool isDeviceSuitable(vk::PhysicalDevice dev, vk::SurfaceKHR renderSurface)
 {
-	auto queuesFound = findQueueFamilies(dev, renderSurface).isReady();
+	auto queuesFound = QueueFamilyIndices(dev, renderSurface).hasAllQueues();
 	auto extensionsSupported = checkDeviceExtensionsSupported(dev);
 	auto swapChainAdequate = querySwapChainSupport(dev, renderSurface).isAdequate();
 	return queuesFound && extensionsSupported && swapChainAdequate;
@@ -400,11 +355,11 @@ private:
 
 	void createLogicalDevice()
 	{
-		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface.get());
+		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
 
 		std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 
-		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+		std::set<uint32_t> uniqueQueueFamilies = {indices.graphics(), indices.present()};
 		float queuePriority = 1.0f;
 		vk::DeviceQueueCreateInfo queueCreateInfo(
 			vk::DeviceQueueCreateFlags(),
@@ -428,8 +383,8 @@ private:
 		);
 		m_device = m_physicalDevice.createDeviceUnique(createInfo);
 
-		m_graphicsQueue = m_device->getQueue(indices.graphicsFamily.value(), 0);
-		m_presentQueue = m_device->getQueue(indices.presentFamily.value(), 0);
+		m_graphicsQueue = m_device->getQueue(indices.graphics(), 0);
+		m_presentQueue = m_device->getQueue(indices.present(), 0);
 	}
 
 	void createSwapChain()
@@ -457,9 +412,9 @@ private:
 			vk::ImageUsageFlagBits::eColorAttachment
 		);
 
-		QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice, m_renderSurface.get());
-		uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
-		if (indices.graphicsFamily != indices.presentFamily)
+		QueueFamilyIndices indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
+		uint32_t queueFamilyIndices[] = {indices.graphics(), indices.present()};
+		if (indices.graphics() != indices.present())
 		{
 			chainInfo.imageSharingMode = vk::SharingMode::eConcurrent;
 			chainInfo.queueFamilyIndexCount = 2;
@@ -683,8 +638,8 @@ private:
 
 	void createCommandPool()
 	{
-		auto indices = findQueueFamilies(m_physicalDevice, m_renderSurface.get());
-		vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), indices.graphicsFamily.value());
+		auto indices = QueueFamilyIndices(m_physicalDevice, *m_renderSurface);
+		vk::CommandPoolCreateInfo commandPoolInfo(vk::CommandPoolCreateFlags(), indices.graphics());
 		m_commandPool = m_device->createCommandPoolUnique(commandPoolInfo);
 	}
 

@@ -19,6 +19,7 @@ add_executable(triangle
     
     src/util/callbacks.cpp
     src/util/general.cpp
+    src/util/QueueFamilyIndices.cpp
 )
 target_link_libraries(triangle glfw Vulkan::Vulkan)
 target_include_directories(triangle PRIVATE ${GLFW_INCLUDE_DIRS} PRIVATE Vulkan::Vulkan)
