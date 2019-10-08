@@ -70,18 +70,6 @@ private:
 	const char *m_extensionName;
 };
 
-struct SwapChainSupportDetails
-{
-	vk::SurfaceCapabilitiesKHR capabilities;
-	std::vector<vk::SurfaceFormatKHR> formats;
-	std::vector<vk::PresentModeKHR> presentModes;
-
-	bool isAdequate() const
-	{
-		return !formats.empty() && !presentModes.empty();
-	}
-};
-
 struct Vertex
 {
 	glm::vec2 pos;
@@ -108,72 +96,12 @@ const std::vector<Vertex> vertecies
     { {-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}	
 };
 
-bool checkDeviceExtensionsSupported(vk::PhysicalDevice dev)
-{
-	auto properties = dev.enumerateDeviceExtensionProperties();
-
-	bool isFound = false;	
-	for (const auto &extName : config::DEVICE_EXTENSIONS)
-	{
-		for (const auto &extProperties : properties)
-		{
-			if (!strcmp(extName, extProperties.extensionName))
-			{
-				isFound = true;
-				break;
-			}
-		}
-
-		if (!isFound)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR renderSurface)
-{
-	return SwapChainSupportDetails{
-		device.getSurfaceCapabilitiesKHR(renderSurface),
-		device.getSurfaceFormatsKHR(renderSurface),
-		device.getSurfacePresentModesKHR(renderSurface)
-	};
-}
-
 bool isDeviceSuitable(vk::PhysicalDevice dev, vk::SurfaceKHR renderSurface)
 {
 	auto queuesFound = QueueFamilyIndices(dev, renderSurface).hasAllQueues();
-	auto extensionsSupported = checkDeviceExtensionsSupported(dev);
-	auto swapChainAdequate = querySwapChainSupport(dev, renderSurface).isAdequate();
+	auto extensionsSupported = checkDeviceExtensionsSupported(dev, config::DEVICE_EXTENSIONS);
+	auto swapChainAdequate = SwapChainSupportDetails(dev, renderSurface).isAdequate();
 	return queuesFound && extensionsSupported && swapChainAdequate;
-}
-
-vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
-{
-	for (const auto &fmt : availableFormats)
-	{
-		if (fmt.format == vk::Format::eB8G8R8A8Unorm && fmt.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
-		{
-			return fmt;
-		}
-	}
-
-	return availableFormats[0];
-}
-
-vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
-{
-	for (const auto &availablePresentMode : availablePresentModes)
-	{
-		if (availablePresentMode == vk::PresentModeKHR::eMailbox)
-		{
-			return availablePresentMode;
-		}
-	}
-
-	return vk::PresentModeKHR::eFifo;
 }
 
 uint32_t findMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, const uint32_t typeFilter, vk::MemoryPropertyFlags propertyFlags)
@@ -218,32 +146,6 @@ private:
 		glfwSetWindowUserPointer(m_window, this);
 		glfwSetKeyCallback(m_window, &onKeyPress);
 		glfwSetFramebufferSizeCallback(m_window, &glfwFramebufferResize);
-	}
-
-	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities)
-	{
-		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-		{
-			return capabilities.currentExtent;
-		}
-
-		int w, h;
-		glfwGetFramebufferSize(m_window, &w, &h);
-
-		return {
-			clamp(capabilities.minImageExtent.width, static_cast<uint32_t>(w), capabilities.maxImageExtent.width),
-			clamp(capabilities.minImageExtent.height, static_cast<uint32_t>(h), capabilities.maxImageExtent.height)
-		};
-	}
-
-	std::vector<const char *> getRequiredExtensions()
-	{
-		uint32_t extCount = 0;
-		const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&extCount);
-
-		std::vector<const char *> extensions(glfwExtensions, glfwExtensions + extCount);
-		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		return extensions;
 	}
 
 	void createInstance()
@@ -389,17 +291,13 @@ private:
 
 	void createSwapChain()
 	{
-		auto support = querySwapChainSupport(m_physicalDevice, m_renderSurface.get());
+		auto support = SwapChainSupportDetails(m_physicalDevice, m_renderSurface.get());
 
-		auto format = chooseSwapSurfaceFormat(support.formats);
-		auto presentationMode = chooseSwapPresentMode(support.presentModes);
-		auto extent = chooseSwapExtent(support.capabilities);
+		auto format = support.chooseFormat();
+		auto presentationMode = support.choosePresentMode();
+		auto extent = support.chooseExtent(m_window);
 
-		uint32_t imageCount = support.capabilities.minImageCount + 1;
-		if (support.capabilities.maxImageCount > 0)
-		{
-			imageCount = std::min(imageCount, support.capabilities.maxImageCount);
-		}
+		auto imageCount = support.chooseImageCount();
 
 		vk::SwapchainCreateInfoKHR chainInfo(
 			vk::SwapchainCreateFlagsKHR(),
@@ -427,7 +325,7 @@ private:
 			chainInfo.pQueueFamilyIndices = nullptr; // Optional
 		}
 
-		chainInfo.preTransform = support.capabilities.currentTransform;
+		chainInfo.preTransform = support.getCurrentTransform();
 		chainInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 		chainInfo.presentMode = presentationMode;
 		chainInfo.clipped = VK_TRUE;

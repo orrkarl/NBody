@@ -19,6 +19,7 @@ add_executable(triangle
     
     src/util/callbacks.cpp
     src/util/general.cpp
+    src/util/query.cpp
     src/util/QueueFamilyIndices.cpp
 )
 target_link_libraries(triangle glfw Vulkan::Vulkan)
