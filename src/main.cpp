@@ -825,6 +825,23 @@ private:
 		createCommandBuffers();
 	}
 
+	vk::UniqueBuffer createBuffer(const vk::DeviceSize size, const vk::BufferUsageFlags usage)
+	{
+		return m_device->createBufferUnique(
+			vk::BufferCreateInfo(
+				vk::BufferCreateFlags(),
+				size,
+				usage
+			)
+		);
+	}
+
+	template <typename T>
+	vk::UniqueBuffer createBuffer(const std::vector<T>& data, const vk::BufferUsageFlags usage)
+	{
+		return createBuffer(sizeof(T) * data.size(), usage);
+	}
+
 	void createVertexBuffer()
 	{
 		vk::BufferCreateInfo bufferInfo(
