@@ -275,6 +275,19 @@ vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &
 	return vk::PresentModeKHR::eFifo;
 }
 
+uint32_t findMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, const uint32_t typeFilter, vk::MemoryPropertyFlags propertyFlags)
+{
+	for (auto i = 0u; i < properties.memoryTypeCount; ++i)
+	{
+		if ((typeFilter & (1 << i)) && ((properties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags))
+		{
+			return i;
+		}
+	}
+
+	throw std::runtime_error("could not find compatible memory");
+}
+
 template <typename T>
 T clamp(const T &min, const T &value, const T &max)
 {
@@ -336,21 +349,6 @@ private:
 		std::vector<const char *> extensions(glfwExtensions, glfwExtensions + extCount);
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		return extensions;
-	}
-
-	uint32_t findMemoryType(const uint32_t typeFilter, vk::MemoryPropertyFlags propertyFlags)
-	{
-		auto memProperties = m_physicalDevice.getMemoryProperties();
-
-		for (auto i = 0u; i < memProperties.memoryTypeCount; ++i)
-		{
-			if ((typeFilter & (1 << i)) && ((memProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags))
-			{
-				return i;
-			}
-		}
-
-		throw std::runtime_error("could not find compatible memory");
 	}
 
 	void createInstance()
@@ -842,30 +840,37 @@ private:
 		return createBuffer(sizeof(T) * data.size(), usage);
 	}
 
-	void createVertexBuffer()
+	vk::UniqueDeviceMemory createMemory(const vk::MemoryRequirements requirements, const vk::MemoryPropertyFlags properties)
 	{
-		vk::BufferCreateInfo bufferInfo(
-			vk::BufferCreateFlags(), 
-			sizeof(vertecies[0]) * vertecies.size(), 
-			vk::BufferUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer)
-		);
-
-		m_vertexBuffer = m_device->createBufferUnique(bufferInfo);
-		
-		auto memRequirements = m_device->getBufferMemoryRequirements(m_vertexBuffer.get());
-		
-		vk::MemoryAllocateInfo allocInfo(
-			memRequirements.size, 
-			findMemoryType(
-				memRequirements.memoryTypeBits, 
-				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+		return m_device->allocateMemoryUnique(
+			vk::MemoryAllocateInfo(
+				requirements.size,
+				findMemoryType(
+					m_physicalDevice.getMemoryProperties(),
+					requirements.memoryTypeBits, 
+					properties
+				)
 			)
 		);
+	}
 
-		m_vertexDeviceMemory = m_device->allocateMemoryUnique(allocInfo);	
+	vk::UniqueDeviceMemory createMemory(const vk::Buffer& buffer, const vk::MemoryPropertyFlags properties)
+	{
+		return createMemory(m_device->getBufferMemoryRequirements(buffer), properties);
+	}
 
-		void* data = m_device->mapMemory(m_vertexDeviceMemory.get(), 0, bufferInfo.size);		
-		std::memcpy(data, vertecies.data(), static_cast<size_t>(bufferInfo.size));
+	void createVertexBuffer()
+	{
+		auto size = sizeof(vertecies[0]) * vertecies.size();
+
+		m_vertexBuffer = createBuffer(size, vk::BufferUsageFlags(vk::BufferUsageFlagBits::eVertexBuffer));
+		m_vertexDeviceMemory = createMemory(
+			m_vertexBuffer.get(), 
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+		);	
+
+		void* data = m_device->mapMemory(m_vertexDeviceMemory.get(), 0, size);		
+		std::memcpy(data, vertecies.data(), static_cast<size_t>(size));
 		m_device->unmapMemory(m_vertexDeviceMemory.get());
 
 		m_device->bindBufferMemory(m_vertexBuffer.get(), m_vertexDeviceMemory.get(), 0);
