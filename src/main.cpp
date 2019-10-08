@@ -16,8 +16,8 @@
 
 #include <glm/glm.hpp>
 
-#include "util/callbacks.h"
-#include "util/config.h"
+#include "config.h"
+#include "util/util.h"
 
 class VkError : public std::runtime_error
 {
@@ -118,23 +118,6 @@ const std::vector<Vertex> vertecies
     { { 0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
     { {-0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}}	
 };
-
-std::vector<char> readFile(const std::string &path)
-{
-	std::ifstream file(path, std::ios::ate | std::ios::binary);
-	if (!file.is_open())
-	{
-		throw std::runtime_error(std::string("could not open shader file: ") + path);
-	}
-
-	auto fileSize = file.tellg();
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-	file.close();
-
-	return buffer;
-}
 
 QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR renderSurface)
 {
@@ -249,12 +232,6 @@ uint32_t findMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, co
 	}
 
 	throw std::runtime_error("could not find compatible memory");
-}
-
-template <typename T>
-T clamp(const T &min, const T &value, const T &max)
-{
-	return std::max(min, std::min(value, max));
 }
 
 class HelloTriangleApp
